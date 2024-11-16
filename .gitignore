@@ -1,0 +1,66 @@
+# Python project .gitignore file
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+env/
+venv/
+ENV/
+.env/
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environment
+*.venv
+
+# Pytest cache
+.pytest_cache/
+
+# MyPy cache
+.mypy_cache/
+
+# pyenv
+.python-version
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# VSCode specific
+.vscode/
+
+# macOS
+.DS_Store
+
+# tmp folder
+/tmp/
+
+# Environment variables file
+.env
+sugai_env/
+
+# Logs
+*.log
+
+# Cache files
+*.cache
+data/
+*.pkl
+
+# Ignore folders with temporary data or outputs
+.temp
+tmp/
+

@@ -197,6 +197,29 @@ CUSTOM_CSS = """
             margin-bottom: 1em;
         }
     }
+    
+    .back-button {
+        display: inline-block;
+        margin-top: 1em;
+        padding: 0.5em 1em;
+        background-color: #f0f0f0;
+        color: #333;
+        text-decoration: none;
+        border-radius: 4px;
+        border: 1px solid #ddd;
+    }
+    
+    .back-button:hover {
+        background-color: #e0e0e0;
+    }
+    
+    @media (max-width: 768px) {
+        .back-button {
+            width: 100%;
+            text-align: center;
+            margin-bottom: 1em;
+        }
+    }
 """
 
 # Add JavaScript for row management
@@ -245,24 +268,66 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def process_zip_data(file_path, folder_path):
-    """Process uploaded zip file and return dataframes"""
+    """Process the uploaded zip file and return raw dataframes"""
     try:
         # Extract the zip file
         with zipfile.ZipFile(file_path, 'r') as zip_ref:
             logger.info(f"Extracting zip file to {folder_path}")
             zip_ref.extractall(folder_path)
         
-        # Process the data files
+        # Read raw data
         data = {
             'alarms': pd.read_csv(f'{folder_path}/alarms_data_1.csv', skiprows=1),
             'cgm': pd.read_csv(f'{folder_path}/cgm_data_1.csv', skiprows=1),
             'bolus': pd.read_csv(f'{folder_path}/Insulin data/bolus_data_1.csv', skiprows=1),
             'basal': pd.read_csv(f'{folder_path}/Insulin data/basal_data_1.csv', skiprows=1)
         }
-        logger.info("Successfully processed all data files")
+        
+        logger.info("Successfully loaded raw data files")
         return data
+        
     except Exception as e:
         logger.error(f"Error processing zip file: {str(e)}")
+        raise
+
+def clean_data(data):
+    """Clean and process the raw dataframes"""
+    try:
+        logger.info("Starting data cleaning process...")
+        
+        # Clean alarms data
+        alarms_data = data['alarms'].iloc[:, :-1]  # remove Serial Number column
+        alarms_exclude_values = [
+            "tandem_cgm_sensor_expiring",
+            "tandem_cgm_replace_sensor",
+            "Cartridge Loaded",
+            "Resume Pump Alarm (18A)"
+        ]
+        alarms_data = alarms_data[~alarms_data['Alarm/Event'].isin(alarms_exclude_values)]
+        
+        # Clean CGM data
+        cgm_data = data['cgm'].iloc[:, :-1]  # remove Serial Number column
+        
+        # Clean bolus data
+        bolus_data = data['bolus'].iloc[:, :-3]  # remove last 3 columns
+        
+        # Clean basal data
+        basal_data = data['basal'].iloc[:, :-2]  # remove last two columns
+        basal_data = basal_data.drop(columns=["Percentage (%)"])
+        basal_data = basal_data.sort_values(by="Timestamp", ascending=False)
+        
+        cleaned_data = {
+            'alarms': alarms_data,
+            'cgm': cgm_data,
+            'bolus': bolus_data,
+            'basal': basal_data
+        }
+        
+        logger.info("Data cleaning completed successfully")
+        return cleaned_data
+        
+    except Exception as e:
+        logger.error(f"Error cleaning data: {str(e)}")
         raise
 
 @rt("/")
@@ -287,15 +352,14 @@ def get():
     return Titled("Insulin Pump Settings Analyzer", form)
 
 @rt("/", methods=["POST"])
-async def post(req):  # Make this async
+async def post(req):
     try:
-        form = await req.form()  # Await the form data
+        form = await req.form()
         file = form.get('file')
         
         if not file:
             return Div("No file uploaded", cls="error-message")
             
-        # Log the analysis request
         logger.info(f"Processing analysis request for file: {file.filename}")
         
         # Create unique folder for this upload
@@ -306,14 +370,15 @@ async def post(req):  # Make this async
         try:
             # Save uploaded file
             file_path = os.path.join(folder_path, file.filename)
-            contents = await file.read()  # Await file read
+            contents = await file.read()
             with open(file_path, 'wb') as f:
                 f.write(contents)
             
-            # Process data
-            data = process_zip_data(file_path, folder_path)
+            # Process and clean data
+            raw_data = process_zip_data(file_path, folder_path)
+            data = clean_data(raw_data)
             
-            # Collect form data for settings
+            # Collect settings from form
             settings = []
             for i in range(24):
                 settings.append({
@@ -324,46 +389,62 @@ async def post(req):  # Make this async
                     "target_bg": float(form.get(f"target_bg_{i}", 5.6))
                 })
             
-            # Create user message for LLM
+            # Create user message with legend
             user_message = f"""
-            Current Insulin Pump Settings:
+            I am providing data from my insulin pump and CGM system to help me optimize my personal insulin profile. Below are my current insulin pump settings that I would like reviewed based on the following data:
+
+            ### Current Insulin Pump Settings:
             {json.dumps({"timed_settings": settings}, indent=2)}
-            
-            Data Analysis:
-            {data['alarms'].to_string()}
-            {data['cgm'].to_string()}
-            {data['bolus'].to_string()}
-            {data['basal'].to_string()}
+
+            ### Alarms Data:
+            {data['alarms'].to_string(index=False)}
+
+            #### Legend of Alarm/Event Terms:
+            - **tandem_cgm_low**: Indicates that glucose levels have dropped below a preset threshold.
+            - **tandem_cgm_low_2**: A repeated or escalated low glucose alarm, indicating that glucose levels are critically low or have stayed low for an extended period.
+            - **tandem_cgm_high**: Indicates that glucose levels have risen above a preset threshold, typically signaling hyperglycemia.
+
+            ### CGM Data:
+            {data['cgm'].to_string(index=False)}
+
+            ### Bolus Data:
+            {data['bolus'].to_string(index=False)}
+
+            ### Basal Data:
+            {data['basal'].to_string(index=False)}
+
+            #### Legend of Insulin Types in Basal Data:
+            - **Suspend**: Indicates that insulin delivery has been temporarily stopped, usually due to low glucose levels or other safety concerns.
+            - **Scheduled**: Represents the basal insulin that is pre-programmed to be delivered continuously in the background.
+            - **Temporary**: Indicates an adjustment to the basal rate for a temporary period, often used during exercise or other activities affecting insulin needs.
+
+            Using all of the provided data, please suggest personalized adjustments to my current insulin pump settings, including basal rates, carb ratios, and correction factors, in order to improve my glucose control and reduce the frequency of alarms.
             """
             
-            # Log the LLM prompt
-            logger.info(f"Sending prompt to LLM:\n{user_message}")
+            logger.info("Sending prompt to LLM for analysis")
+            logger.debug(f"LLM Prompt:\n{user_message}")
             
             # Get LLM recommendation
             response = completion(
                 model="groq/llama-3.1-70b-versatile",
+                temperature=0.0,
+                stop=["```"],
                 messages=[
                     {"role": "system", "content": SYSTEM_MESSAGE},
-                    {"role": "user", "content": user_message}
+                    {"role": "user", "content": user_message},
+                    {"role": "assistant", "content": "```markdown"}
                 ]
             )
             
             recommendation = response.choices[0].message.content
             
-            return Titled("Analysis Results",
-                Div(
-                    H3("Analysis Results"),
-                    Pre(recommendation),
-                    A("Back", href="/")
-                )
+            return Div(
+                H3("Analysis Results"),
+                Pre(recommendation),
+                A("Back", href="/", cls="back-button"),
+                cls="analysis-results"
             )
             
-        except Exception as e:
-            logger.error(f"Error during analysis: {str(e)}")
-            return Titled("Error",
-                Div(f"An error occurred: {str(e)}", cls="error-message"),
-                A("Back", href="/")
-            )
         finally:
             # Clean up uploaded files
             if os.path.exists(file_path):
@@ -371,9 +452,10 @@ async def post(req):  # Make this async
                 
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}")
-        return Titled("Error",
-            Div(f"An error occurred: {str(e)}", cls="error-message"),
-            A("Back", href="/")
+        return Div(
+            P(f"An error occurred: {str(e)}"),
+            A("Back", href="/", cls="back-button"),
+            cls="error-message"
         )
 
 if __name__ == "__main__":

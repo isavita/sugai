@@ -4,6 +4,7 @@ import json
 import zipfile
 import pandas as pd
 from litellm import completion
+from datetime import datetime
 
 # Constants
 UPLOAD_FOLDER = 'uploads'
@@ -34,6 +35,108 @@ IMPORTANT:
 - No overlapping time blocks
 - Base predictions only on available data"""
 
+# Constants and default settings
+DEFAULT_SETTINGS = json.loads("""
+{
+  "timed_settings": [
+    {"time_range": "12:00 AM", "basal_rate": 0.4, "correction_factor": "1:3.0", "carb_ratio": "1:10", "target_bg": 6.5},
+    {"time_range": "2:00 AM", "basal_rate": 0.5, "correction_factor": "1:3.0", "carb_ratio": "1:10", "target_bg": 6.5},
+    {"time_range": "5:00 AM", "basal_rate": 0.8, "correction_factor": "1:3.0", "carb_ratio": "1:10", "target_bg": 6.5},
+    {"time_range": "6:00 AM", "basal_rate": 0.9, "correction_factor": "1:3.0", "carb_ratio": "1:10", "target_bg": 6.5},
+    {"time_range": "7:00 AM", "basal_rate": 0.8, "correction_factor": "1:3.0", "carb_ratio": "1:10", "target_bg": 5.6},
+    {"time_range": "8:00 AM", "basal_rate": 0.8, "correction_factor": "1:2.5", "carb_ratio": "1:10", "target_bg": 5.6},
+    {"time_range": "9:00 AM", "basal_rate": 0.45, "correction_factor": "1:2.5", "carb_ratio": "1:10", "target_bg": 5.6},
+    {"time_range": "3:00 PM", "basal_rate": 0.5, "correction_factor": "1:2.5", "carb_ratio": "1:10", "target_bg": 5.6},
+    {"time_range": "4:00 PM", "basal_rate": 0.6, "correction_factor": "1:2.5", "carb_ratio": "1:10", "target_bg": 5.6},
+    {"time_range": "7:00 PM", "basal_rate": 0.45, "correction_factor": "1:2.5", "carb_ratio": "1:12", "target_bg": 5.6},
+    {"time_range": "9:00 PM", "basal_rate": 0.3, "correction_factor": "1:3.0", "carb_ratio": "1:12", "target_bg": 5.6},
+    {"time_range": "11:00 PM", "basal_rate": 0.3, "correction_factor": "1:3.0", "carb_ratio": "1:10", "target_bg": 5.6}
+  ]
+}
+""")
+
+def parse_time(time_str):
+    """Convert time string to 24-hour format integer"""
+    try:
+        if 'AM' in time_str or 'PM' in time_str:
+            return int(datetime.strptime(time_str, "%I:%M %p").strftime("%H"))
+        return int(datetime.strptime(time_str, "%H:%M").strftime("%H"))
+    except ValueError:
+        return None
+
+def format_time(hour):
+    """Convert hour to AM/PM format"""
+    return datetime.strptime(f"{hour:02d}:00", "%H:%M").strftime("%I:%M %p").lstrip("0")
+
+def convert_settings_to_hourly():
+    """Convert default settings to hourly format with proper ordering"""
+    hourly_settings = {}
+    
+    # Convert all times to 24-hour format and store settings
+    for setting in DEFAULT_SETTINGS["timed_settings"]:
+        hour = parse_time(setting["time_range"])
+        if hour is not None:
+            hourly_settings[hour] = {
+                "basal_rate": setting["basal_rate"],
+                "correction_factor": setting["correction_factor"],
+                "carb_ratio": setting["carb_ratio"],
+                "target_bg": setting["target_bg"]
+            }
+    
+    return hourly_settings
+
+def generate_settings_table():
+    """Generate the settings table with default values and proper ordering"""
+    hourly_settings = convert_settings_to_hourly()
+    
+    # Create table rows
+    rows = []
+    
+    # Add header row
+    rows.append(Tr(
+        Th("Time"),
+        Th("Basal Rate (U/hr)"),
+        Th("Correction Factor (1:mmol/L)"),
+        Th("Carb Ratio (1:grams)"),
+        Th("Target BG (mmol/L)"),
+        Th("Actions")
+    ))
+    
+    # Get the last settings for filling gaps
+    last_settings = {
+        "basal_rate": 0.0,
+        "correction_factor": "1:3.0",
+        "carb_ratio": "1:10",
+        "target_bg": 5.6
+    }
+    
+    # Generate rows for each hour, using previous settings for missing hours
+    for hour in range(24):
+        if hour in hourly_settings:
+            last_settings = hourly_settings[hour]
+            
+        rows.append(Tr(
+            Td(format_time(hour)),
+            Td(Input(type="number", step="0.1", name=f"basal_rate_{hour}", 
+                    value=str(last_settings["basal_rate"]))),
+            Td(Input(type="text", name=f"correction_factor_{hour}", 
+                    value=last_settings["correction_factor"])),
+            Td(Input(type="text", name=f"carb_ratio_{hour}", 
+                    value=last_settings["carb_ratio"])),
+            Td(Input(type="number", step="0.1", name=f"target_bg_{hour}", 
+                    value=str(last_settings["target_bg"]))),
+            Td(
+                Button("Delete", 
+                      type="button",
+                      onclick=f"deleteRow(this)",
+                      cls="delete-btn"),
+                style="text-align: center;"
+            )
+        ))
+    
+    # Create and return the table with all rows
+    return Table(*rows, cls="settings-table")
+
 # Add custom CSS for the insulin pump settings
 CUSTOM_CSS = """
 /* Compact table styles */
@@ -55,6 +158,19 @@ CUSTOM_CSS = """
     height: 2em;
 }
 
+.delete-btn {
+    padding: 0.2em 0.5em;
+    background-color: #ff4444;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.delete-btn:hover {
+    background-color: #cc0000;
+}
+
 /* Container styles */
 .content-container {
     max-width: 1000px;
@@ -62,16 +178,46 @@ CUSTOM_CSS = """
     padding: 1em;
 }
 
-/* Upload section styles */
-.upload-section {
-    margin-bottom: 1.5em;
-}
-
 /* Form styles */
 .settings-form {
     background: var(--background-color);
     padding: 1em;
     border-radius: 4px;
+}
+"""
+
+# Add JavaScript for row management
+CUSTOM_JS = """
+function deleteRow(button) {
+    const row = button.closest('tr');
+    if (document.querySelectorAll('.settings-table tr').length > 2) {
+        row.remove();
+    } else {
+        alert('Cannot delete the last row');
+    }
+}
+
+function validateForm() {
+    const rows = document.querySelectorAll('.settings-table tr');
+    const times = new Set();
+    
+    for (let i = 1; i < rows.length; i++) {
+        const timeCell = rows[i].cells[0];
+        const time = timeCell.textContent;
+        
+        if (times.has(time)) {
+            alert('Duplicate time entries are not allowed');
+            return false;
+        }
+        times.add(time);
+    }
+    
+    if (rows.length > 25) { // Header + 24 hours
+        alert('Maximum 24 time slots allowed');
+        return false;
+    }
+    
+    return true;
 }
 """
 
@@ -105,26 +251,6 @@ def process_data_files(folder):
     
     return alarms_data_cleaned, cgm_data, bolus_data, basal_data
 
-def generate_settings_table():
-    """Generate the settings table with compact styling"""
-    return Table(
-        Tr(
-            Th("Time"),
-            Th("Basal Rate (U/hr)"),
-            Th("Correction Factor (1:mmol/L)"),
-            Th("Carb Ratio (1:grams)"),
-            Th("Target BG (mmol/L)")
-        ),
-        *[Tr(
-            Td(f"{hour:02d}:00"),
-            Td(Input(type="number", step="0.1", name=f"basal_rate_{hour}", value="0.0")),
-            Td(Input(type="text", name=f"correction_factor_{hour}", value="1:3.0")),
-            Td(Input(type="text", name=f"carb_ratio_{hour}", value="1:10")),
-            Td(Input(type="number", step="0.1", name=f"target_bg_{hour}", value="5.6"))
-        ) for hour in range(24)],
-        cls="settings-table"
-    )
-
 @rt("/")
 def get():
     form = Form(
@@ -138,7 +264,7 @@ def get():
             generate_settings_table(),
             cls="settings-form"
         ),
-        Button("Analyze", type="submit"),
+        Button("Analyze", type="submit", onclick="return validateForm()"),
         method="POST",
         enctype="multipart/form-data",
         cls="content-container"
@@ -146,6 +272,7 @@ def get():
     
     return Titled("Insulin Pump Settings Analyzer",
         Style(CUSTOM_CSS),
+        Script(CUSTOM_JS),
         form
     )
 

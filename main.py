@@ -8,7 +8,8 @@ from datetime import datetime
 import logging
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, 
+                   format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Constants
@@ -144,51 +145,58 @@ def generate_settings_table():
 
 # Add custom CSS for the insulin pump settings
 CUSTOM_CSS = """
-/* Compact table styles */
-.settings-table {
-    width: auto;
-    margin: 0 auto;
-    border-collapse: collapse;
-}
-
-.settings-table th, .settings-table td {
-    padding: 0.3em;
-    text-align: left;
-}
-
-.settings-table input {
-    width: 6em;
-    padding: 0.2em;
-    margin: 0;
-    height: 2em;
-}
-
-.delete-btn {
-    padding: 0.2em 0.5em;
-    background-color: #ff4444;
-    color: white;
-    border: none;
-    border-radius: 3px;
-    cursor: pointer;
-}
-
-.delete-btn:hover {
-    background-color: #cc0000;
-}
-
-/* Container styles */
-.content-container {
-    max-width: 1000px;
-    margin: 0 auto;
-    padding: 1em;
-}
-
-/* Form styles */
-.settings-form {
-    background: var(--background-color);
-    padding: 1em;
-    border-radius: 4px;
-}
+    .settings-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;  /* Smaller font size */
+    }
+    
+    .settings-table th,
+    .settings-table td {
+        padding: 4px 8px;  /* Reduced padding */
+        border: 1px solid #ddd;
+    }
+    
+    .settings-table input {
+        width: 100%;
+        padding: 2px 4px;  /* Smaller input fields */
+        height: 24px;      /* Reduced height */
+        margin: 0;
+    }
+    
+    .delete-btn {
+        padding: 2px 8px;
+        font-size: 12px;
+        height: auto;
+    }
+    
+    /* Mobile responsiveness */
+    @media (max-width: 768px) {
+        .settings-table {
+            font-size: 12px;  /* Even smaller on mobile */
+        }
+        
+        .settings-table th,
+        .settings-table td {
+            padding: 2px 4px;
+        }
+        
+        .content-container {
+            padding: 10px;
+            margin: 0;
+        }
+        
+        .settings-form {
+            overflow-x: auto;  /* Allow horizontal scroll on mobile */
+        }
+        
+        /* Stack the upload and settings sections on mobile */
+        .upload-section,
+        .settings-form {
+            width: 100%;
+            margin-bottom: 1em;
+        }
+    }
 """
 
 # Add JavaScript for row management
@@ -287,6 +295,9 @@ async def post(req):  # Make this async
         if not file:
             return Div("No file uploaded", cls="error-message")
             
+        # Log the analysis request
+        logger.info(f"Processing analysis request for file: {file.filename}")
+        
         # Create unique folder for this upload
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         folder_path = os.path.join(UPLOAD_FOLDER, timestamp)
@@ -324,6 +335,9 @@ async def post(req):  # Make this async
             {data['bolus'].to_string()}
             {data['basal'].to_string()}
             """
+            
+            # Log the LLM prompt
+            logger.info(f"Sending prompt to LLM:\n{user_message}")
             
             # Get LLM recommendation
             response = completion(

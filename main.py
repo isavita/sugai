@@ -23,6 +23,8 @@ ANALYZE AND PROVIDE:
 1. ONE specific pattern with exact time period and glucose values
 2. ONE basal rate adjustment (single time block only)
 3. Realistic, data-based outcome targets
+4. Format all time references using AM/PM (e.g., "2:00 AM" instead of "02:00")
+
 
 FORMAT YOUR RESPONSE AS:
 ### Pattern Identified

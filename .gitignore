@@ -63,4 +63,4 @@ data/
 # Ignore folders with temporary data or outputs
 .temp
 tmp/
-
+.sesskey

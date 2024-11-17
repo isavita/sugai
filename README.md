@@ -15,9 +15,16 @@ A web application that analyzes insulin pump and CGM (Continuous Glucose Monitor
 
 - Upload and process insulin pump data files
 - Interactive settings input interface
-- AI-powered analysis using LLaMA models
+- AI-powered analysis using Llama-3.1-70B model provided by [Groq](https://console.groq.com/docs/overview)
 - Clear, actionable recommendations
 - Mobile-friendly design
+
+## Technical Stack
+
+- FastHTML for web interface
+- Pandas for data processing
+- LiteLLM for LLM integration
+- Llama-3.1-70B model via [Groq](https://console.groq.com/docs/overview) for AI analysis
 
 ## License
 

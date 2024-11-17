@@ -1,6 +1,6 @@
 # Insulin Pump Settings Analyzer
 
-This is my submission for [Llama Impact Hackathon London - Nov 2024](https://llama.foundation/hackathon) under Area 2: Supporting Delivery of Public Services and Healthcare track.
+This is my submission for **Llama Impact Hackathon London - Nov 2024** under **Area 2: Supporting Delivery of Public Services and Healthcare track**.
 
 ## About
 

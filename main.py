@@ -34,6 +34,47 @@ IMPORTANT:
 - No overlapping time blocks
 - Base predictions only on available data"""
 
+# Add custom CSS for the insulin pump settings
+CUSTOM_CSS = """
+/* Compact table styles */
+.settings-table {
+    width: auto;
+    margin: 0 auto;
+    border-collapse: collapse;
+}
+
+.settings-table th, .settings-table td {
+    padding: 0.3em;
+    text-align: left;
+}
+
+.settings-table input {
+    width: 6em;
+    padding: 0.2em;
+    margin: 0;
+    height: 2em;
+}
+
+/* Container styles */
+.content-container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 1em;
+}
+
+/* Upload section styles */
+.upload-section {
+    margin-bottom: 1.5em;
+}
+
+/* Form styles */
+.settings-form {
+    background: var(--background-color);
+    padding: 1em;
+    border-radius: 4px;
+}
+"""
+
 # Initialize FastHTML app
 app, rt = fast_app()
 
@@ -64,62 +105,49 @@ def process_data_files(folder):
     
     return alarms_data_cleaned, cgm_data, bolus_data, basal_data
 
-def generate_time_slots():
-    """Generate 24 time slots for the form"""
-    hours = []
-    for hour in range(24):
-        time = f"{hour:02d}:00"
-        hours.append({
-            "time": time,
-            "basal_rate": 0.0,
-            "correction_factor": "1:3.0",
-            "carb_ratio": "1:10",
-            "target_bg": 5.6
-        })
-    return hours
+def generate_settings_table():
+    """Generate the settings table with compact styling"""
+    return Table(
+        Tr(
+            Th("Time"),
+            Th("Basal Rate (U/hr)"),
+            Th("Correction Factor (1:mmol/L)"),
+            Th("Carb Ratio (1:grams)"),
+            Th("Target BG (mmol/L)")
+        ),
+        *[Tr(
+            Td(f"{hour:02d}:00"),
+            Td(Input(type="number", step="0.1", name=f"basal_rate_{hour}", value="0.0")),
+            Td(Input(type="text", name=f"correction_factor_{hour}", value="1:3.0")),
+            Td(Input(type="text", name=f"carb_ratio_{hour}", value="1:10")),
+            Td(Input(type="number", step="0.1", name=f"target_bg_{hour}", value="5.6"))
+        ) for hour in range(24)],
+        cls="settings-table"
+    )
 
 @rt("/")
 def get():
-    time_slots = generate_time_slots()
-    
     form = Form(
-        H1("Insulin Pump Settings Analyzer"),
-        
-        # File upload section
         Div(
             H2("Upload Data"),
             Input(type="file", name="file", accept=".zip"),
             cls="upload-section"
         ),
-        
-        # Settings input section
         Div(
             H2("Insulin Pump Settings"),
-            Table(
-                Tr(
-                    Th("Time"),
-                    Th("Basal Rate (U/hr)"),
-                    Th("Correction Factor (1:mmol/L)"),
-                    Th("Carb Ratio (1:grams)"),
-                    Th("Target BG (mmol/L)")
-                ),
-                *[Tr(
-                    Td(slot["time"]),
-                    Td(Input(type="number", step="0.1", name=f"basal_rate_{i}", value=slot["basal_rate"])),
-                    Td(Input(type="text", name=f"correction_factor_{i}", value=slot["correction_factor"])),
-                    Td(Input(type="text", name=f"carb_ratio_{i}", value=slot["carb_ratio"])),
-                    Td(Input(type="number", step="0.1", name=f"target_bg_{i}", value=slot["target_bg"]))
-                ) for i, slot in enumerate(time_slots)]
-            ),
-            cls="settings-section"
+            generate_settings_table(),
+            cls="settings-form"
         ),
-        
         Button("Analyze", type="submit"),
         method="POST",
-        enctype="multipart/form-data"
+        enctype="multipart/form-data",
+        cls="content-container"
     )
     
-    return Titled("Insulin Pump Settings Analyzer", form)
+    return Titled("Insulin Pump Settings Analyzer",
+        Style(CUSTOM_CSS),
+        form
+    )
 
 @rt("/")
 async def post(req):

@@ -222,6 +222,243 @@ CUSTOM_CSS = """
             margin-bottom: 1em;
         }
     }
+    
+    .analysis-results {
+        max-width: 800px;  /* Limit width on larger screens */
+        margin: 2em auto;  /* Center the results and add vertical spacing */
+        padding: 1.5em;    /* Add padding around content */
+        background: #f8f9fa;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .analysis-results h3 {
+        color: #2c3e50;
+        margin-bottom: 1em;
+    }
+    
+    .analysis-results pre {
+        white-space: pre-wrap;       /* Wrap text instead of scrolling */
+        word-wrap: break-word;       /* Break long words */
+        padding: 1em;
+        background: #fff;
+        border: 1px solid #e9ecef;
+        border-radius: 4px;
+        font-size: 0.9em;
+        line-height: 1.5;
+        overflow-x: auto;            /* Add scroll only if needed */
+        max-width: 100%;             /* Ensure it doesn't overflow container */
+    }
+    
+    .back-button {
+        display: inline-block;
+        margin-top: 1.5em;
+        padding: 0.5em 1em;
+        background-color: #f0f0f0;
+        color: #333;
+        text-decoration: none;
+        border-radius: 4px;
+        border: 1px solid #ddd;
+        transition: background-color 0.2s;
+    }
+    
+    .back-button:hover {
+        background-color: #e0e0e0;
+    }
+    
+    /* Mobile responsiveness */
+    @media (max-width: 768px) {
+        .analysis-results {
+            margin: 1em;
+            padding: 1em;
+        }
+        
+        .analysis-results pre {
+            font-size: 0.85em;
+            padding: 0.75em;
+        }
+        
+        .back-button {
+            display: block;
+            text-align: center;
+            margin: 1em auto;
+        }
+    }
+    
+    .upload-section input[type="file"] {
+        padding: 8px;
+        margin-bottom: 1em;
+        border: 2px dashed #ccc;
+        border-radius: 4px;
+        width: 100%;
+        background: #f8f9fa;
+    }
+    
+    .upload-section input[type="file"]:hover {
+        border-color: #0056b3;
+        background: #f0f4f8;
+    }
+    
+    .settings-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+        background: white;  /* Make table stand out more */
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);  /* Subtle shadow */
+    }
+    
+    .settings-table th,
+    .settings-table td {
+        padding: 4px 8px;
+        border: 1px solid #e0e0e0;  /* Lighter border color */
+    }
+    
+    .settings-table th {
+        background: #f8f9fa;  /* Light header background */
+        color: #2c3e50;       /* Darker text for contrast */
+    }
+    
+    .settings-table input {
+        width: 100%;
+        padding: 2px 4px;
+        height: 24px;
+        margin: 0;
+        border: 1px solid #dee2e6;
+        border-radius: 3px;
+    }
+    
+    .settings-table input:focus {
+        outline: none;
+        border-color: #0056b3;
+        box-shadow: 0 0 0 2px rgba(0,86,179,0.1);
+    }
+    
+    .delete-btn {
+        padding: 2px 8px;
+        font-size: 12px;
+        height: auto;
+        background: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+    }
+    
+    .delete-btn:hover {
+        background: #c82333;
+    }
+    
+    button[type="submit"] {
+        width: 100%;
+        padding: 10px;
+        background: #0056b3;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        margin-top: 1em;
+    }
+    
+    button[type="submit"]:hover {
+        background: #004494;
+    }
+    
+    /* Mobile responsiveness */
+    @media (max-width: 768px) {
+        .settings-table {
+            font-size: 12px;
+        }
+        
+        .settings-table th,
+        .settings-table td {
+            padding: 2px 4px;
+        }
+        
+        .content-container {
+            padding: 10px;
+            margin: 0;
+        }
+        
+        .settings-form {
+            overflow-x: auto;
+        }
+        
+        .upload-section,
+        .settings-form {
+            width: 100%;
+            margin-bottom: 1em;
+        }
+    }
+    
+    .upload-section {
+        text-align: center;
+        margin: 2em auto;
+        max-width: 600px;
+    }
+    
+    .upload-section input[type="file"] {
+        display: none;  /* Hide the default file input */
+    }
+    
+    .file-upload-label {
+        display: inline-block;
+        padding: 10px 20px;
+        background: #0056b3;
+        color: white;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    
+    .file-upload-label:hover {
+        background: #004494;
+    }
+    
+    .file-name {
+        margin-top: 8px;
+        color: #666;
+    }
+    
+    .analysis-results {
+        max-width: 800px;
+        margin: 2em auto;
+        padding: 2em;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .analysis-results h3 {
+        color: #2c3e50;
+        margin-bottom: 1.5em;
+        padding-bottom: 0.5em;
+        border-bottom: 2px solid #eee;
+    }
+    
+    .analysis-results pre {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        padding: 1.5em;
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 6px;
+        font-size: 0.95em;
+        line-height: 1.6;
+    }
+    
+    /* Mobile responsiveness */
+    @media (max-width: 768px) {
+        .analysis-results {
+            margin: 1em;
+            padding: 1em;
+        }
+        
+        .analysis-results pre {
+            padding: 1em;
+            font-size: 0.9em;
+        }
+    }
 """
 
 # Add JavaScript for row management
@@ -337,7 +574,12 @@ def get():
     form = Form(
         Div(
             H2("Upload Data"),
-            Input(type="file", name="file", accept=".zip"),
+            Label(
+                "Choose File",
+                Input(type="file", name="file", accept=".zip", id="file-input"),
+                cls="file-upload-label"
+            ),
+            Div(cls="file-name", id="file-name-display"),
             cls="upload-section"
         ),
         Div(
@@ -351,7 +593,15 @@ def get():
         action="/"  # Post to same URL
     )
     
-    return Titled("Insulin Pump Settings Analyzer", form)
+    return Titled("Insulin Pump Settings Analyzer", 
+        form,
+        Script("""
+            document.getElementById('file-input').addEventListener('change', function() {
+                var fileName = this.files[0] ? this.files[0].name : 'No file chosen';
+                document.getElementById('file-name-display').textContent = fileName;
+            });
+        """)
+    )
 
 @rt("/", methods=["POST"])
 async def post(req):

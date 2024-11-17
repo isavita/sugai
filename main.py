@@ -5,6 +5,11 @@ import zipfile
 import pandas as pd
 from litellm import completion
 from datetime import datetime
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Constants
 UPLOAD_FOLDER = 'uploads'
@@ -222,34 +227,35 @@ function validateForm() {
 """
 
 # Initialize FastHTML app
-app, rt = fast_app()
+app, rt = fast_app(hdrs=(
+    Script(src="https://unpkg.com/htmx.org@1.9.10"),
+    Style(CUSTOM_CSS)
+))
 
 # Helper functions
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def process_data_files(folder):
-    """Process uploaded CSV files and return cleaned DataFrames"""
-    alarms_data = pd.read_csv(f'{folder}/alarms_data_1.csv', skiprows=1)
-    cgm_data = pd.read_csv(f'{folder}/cgm_data_1.csv', skiprows=1)
-    bolus_data = pd.read_csv(f'{folder}/Insulin data/bolus_data_1.csv', skiprows=1)
-    basal_data = pd.read_csv(f'{folder}/Insulin data/basal_data_1.csv', skiprows=1)
-
-    # Clean up data
-    alarms_exclude_values = [
-        "tandem_cgm_sensor_expiring",
-        "tandem_cgm_replace_sensor",
-        "Cartridge Loaded",
-        "Resume Pump Alarm (18A)"
-    ]
-    
-    alarms_data = alarms_data.iloc[:, :-1]
-    alarms_data_cleaned = alarms_data[~alarms_data['Alarm/Event'].isin(alarms_exclude_values)]
-    cgm_data = cgm_data.iloc[:, :-1]
-    bolus_data = bolus_data.iloc[:, :-3]
-    basal_data = basal_data.iloc[:, :-2].drop(columns=["Percentage (%)"])
-    
-    return alarms_data_cleaned, cgm_data, bolus_data, basal_data
+def process_zip_data(file_path, folder_path):
+    """Process uploaded zip file and return dataframes"""
+    try:
+        # Extract the zip file
+        with zipfile.ZipFile(file_path, 'r') as zip_ref:
+            logger.info(f"Extracting zip file to {folder_path}")
+            zip_ref.extractall(folder_path)
+        
+        # Process the data files
+        data = {
+            'alarms': pd.read_csv(f'{folder_path}/alarms_data_1.csv', skiprows=1),
+            'cgm': pd.read_csv(f'{folder_path}/cgm_data_1.csv', skiprows=1),
+            'bolus': pd.read_csv(f'{folder_path}/Insulin data/bolus_data_1.csv', skiprows=1),
+            'basal': pd.read_csv(f'{folder_path}/Insulin data/basal_data_1.csv', skiprows=1)
+        }
+        logger.info("Successfully processed all data files")
+        return data
+    except Exception as e:
+        logger.error(f"Error processing zip file: {str(e)}")
+        raise
 
 @rt("/")
 def get():
@@ -264,89 +270,97 @@ def get():
             generate_settings_table(),
             cls="settings-form"
         ),
-        Button("Analyze", type="submit", onclick="return validateForm()"),
+        Button("Analyze", type="submit"),
+        Div(id="analysis-results", cls="analysis-results"),
         method="POST",
-        enctype="multipart/form-data",
-        cls="content-container"
+        action="/"  # Post to same URL
     )
     
-    return Titled("Insulin Pump Settings Analyzer",
-        Style(CUSTOM_CSS),
-        Script(CUSTOM_JS),
-        form
-    )
+    return Titled("Insulin Pump Settings Analyzer", form)
 
-@rt("/")
-async def post(req):
-    # Create upload folder if it doesn't exist
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-    
-    # Get the uploaded file
-    file = req.files.get('file')
-    if not file or not allowed_file(file.filename):
-        return "Invalid file"
-    
-    # Save and extract zip file
-    zip_path = os.path.join(UPLOAD_FOLDER, file.filename)
-    file.save(zip_path)
-    
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(UPLOAD_FOLDER)
-    
-    # Process the data
+@rt("/", methods=["POST"])
+async def post(req):  # Make this async
     try:
-        alarms_data, cgm_data, bolus_data, basal_data = process_data_files(UPLOAD_FOLDER)
+        form = await req.form()  # Await the form data
+        file = form.get('file')
+        
+        if not file:
+            return Div("No file uploaded", cls="error-message")
+            
+        # Create unique folder for this upload
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        folder_path = os.path.join(UPLOAD_FOLDER, timestamp)
+        os.makedirs(folder_path, exist_ok=True)
+        
+        try:
+            # Save uploaded file
+            file_path = os.path.join(folder_path, file.filename)
+            contents = await file.read()  # Await file read
+            with open(file_path, 'wb') as f:
+                f.write(contents)
+            
+            # Process data
+            data = process_zip_data(file_path, folder_path)
+            
+            # Collect form data for settings
+            settings = []
+            for i in range(24):
+                settings.append({
+                    "time_range": f"{i:02d}:00",
+                    "basal_rate": float(form.get(f"basal_rate_{i}", 0)),
+                    "correction_factor": form.get(f"correction_factor_{i}", "1:3.0"),
+                    "carb_ratio": form.get(f"carb_ratio_{i}", "1:10"),
+                    "target_bg": float(form.get(f"target_bg_{i}", 5.6))
+                })
+            
+            # Create user message for LLM
+            user_message = f"""
+            Current Insulin Pump Settings:
+            {json.dumps({"timed_settings": settings}, indent=2)}
+            
+            Data Analysis:
+            {data['alarms'].to_string()}
+            {data['cgm'].to_string()}
+            {data['bolus'].to_string()}
+            {data['basal'].to_string()}
+            """
+            
+            # Get LLM recommendation
+            response = completion(
+                model="groq/llama-3.1-70b-versatile",
+                messages=[
+                    {"role": "system", "content": SYSTEM_MESSAGE},
+                    {"role": "user", "content": user_message}
+                ]
+            )
+            
+            recommendation = response.choices[0].message.content
+            
+            return Titled("Analysis Results",
+                Div(
+                    H3("Analysis Results"),
+                    Pre(recommendation),
+                    A("Back", href="/")
+                )
+            )
+            
+        except Exception as e:
+            logger.error(f"Error during analysis: {str(e)}")
+            return Titled("Error",
+                Div(f"An error occurred: {str(e)}", cls="error-message"),
+                A("Back", href="/")
+            )
+        finally:
+            # Clean up uploaded files
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                
     except Exception as e:
-        return f"Error processing files: {str(e)}"
-    
-    # Collect form data
-    settings = []
-    for i in range(24):
-        settings.append({
-            "time_range": f"{i:02d}:00",
-            "basal_rate": float(req.form.get(f"basal_rate_{i}", 0)),
-            "correction_factor": req.form.get(f"correction_factor_{i}", "1:3.0"),
-            "carb_ratio": req.form.get(f"carb_ratio_{i}", "1:10"),
-            "target_bg": float(req.form.get(f"target_bg_{i}", 5.6))
-        })
-    
-    # Create user message for LLM
-    user_message = f"""
-    Current Insulin Pump Settings:
-    {json.dumps({"timed_settings": settings}, indent=2)}
-    
-    Alarms Data:
-    {alarms_data.to_string()}
-    
-    CGM Data:
-    {cgm_data.to_string()}
-    
-    Bolus Data:
-    {bolus_data.to_string()}
-    
-    Basal Data:
-    {basal_data.to_string()}
-    """
-    
-    # Get LLM recommendation
-    response = completion(
-        model="groq/llama-3.1-70b-versatile",
-        messages=[
-            {"role": "system", "content": SYSTEM_MESSAGE},
-            {"role": "user", "content": user_message},
-            {"role": "assistant", "content": "```markdown"}
-        ]
-    )
-    
-    recommendation = response.choices[0].message.content
-    
-    return Titled("Analysis Results",
-        Div(
-            H1("Analysis Results"),
-            Pre(recommendation),
+        logger.error(f"Error processing request: {str(e)}")
+        return Titled("Error",
+            Div(f"An error occurred: {str(e)}", cls="error-message"),
             A("Back", href="/")
         )
-    )
 
 if __name__ == "__main__":
     serve()

@@ -64,3 +64,4 @@ data/
 .temp
 tmp/
 .sesskey
+uploads/

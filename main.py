@@ -588,7 +588,7 @@ def get():
             cls="settings-form"
         ),
         Button("Analyze", type="submit"),
-        Div(id="analysis-results", cls="analysis-results"),
+        Div(id="analysis-results", cls="analysis-results", style="display: none;"),
         method="POST",
         action="/"  # Post to same URL
     )
